@@ -10,7 +10,7 @@ You have been hired by LEGO to work on their unfinished web application, improve
 
 2. Form groups of two or three students. One group member must send the names, emails, and GitHub usernames of all the group members to one of the student assistants: Alexander Høyskel (alhoy1499@oslomet.no) or Nathaniel Bjerke-Kildal (s374923@oslomet.no).
 
-3. In each project group, one member must fork the project repository into their own GitHub account, and add the other member(s) as collaborators to the repository with write access. The forked repository is where you will collaborate. All the group members can then use `git clone` on their machine to obtain the forked repository.
+3. In each project group, one member must _fork_ the project repository into their own GitHub account, and add the other member(s) as collaborators to the repository with write access. The forked repository is where you will collaborate. All the group members can then use `git clone` on their machine to obtain the forked repository. Note that the forked repository will be public; if you want a private repository, one group member can instead create a private GitHub repository, and then clone the official repository on their machine and run `git remote set-url origin git@github.com:username/repository` (replace `username` and `repository` with your actual username and repository name), and then `git push origin main`.
 
 
 ## Requirements
