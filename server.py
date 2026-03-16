@@ -3,6 +3,7 @@ import html
 import psycopg
 from flask import Flask, Response, request
 from time import perf_counter
+import gzip
 
 app = Flask(__name__)
 
@@ -28,6 +29,11 @@ def sets():
         template = f.read()
     rows = ""
 
+    utfEncondings = ["UTF-8", "UTF-16-LE", "UTF-16-BE", "UTF-32-LE", "UTF-32-BE"]
+    getEncoding = request.args.get('encoding')
+    if (getEncoding  not in utfEncondings):
+        getEncoding = "UTF-8"
+
     start_time = perf_counter()
     conn = psycopg.connect(**DB_CONFIG)
     try:
@@ -43,7 +49,9 @@ def sets():
         conn.close()
 
     page_html = template.replace("{ROWS}", rows)
-    return Response(page_html, content_type="text/html")
+    page_html = page_html.encode(encoding=getEncoding)
+    
+    return Response(page_html, content_type=f"text/html; charset={getEncoding}")
 
 
 @app.route("/set")
