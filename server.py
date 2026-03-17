@@ -57,6 +57,38 @@ def apiSet():
     json_result = json.dumps(result, indent=4)
     return Response(json_result, content_type="application/json")
 
+# Task 2 API endpoints:
+@app.route("/api/brick_type_in_sets/<brick_type_id>")
+def get_sets_by_brick(brick_type_id):
+    try:
+        result = []
+        with conn.cursor() as cur:
+            query = "SELECT set_id, count FROM lego_inventory WHERE brick_type_id = %s"
+            cur.execute(query, (brick_type_id,))
+
+            rows = cur.fetchall()
+            for row in rows
+                result.add({"set_id": row[0], "count": row[1]})
+            
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"internal server error": str(e)}), 500
+
+@app.route("/api/color_id_in_sets/<color_id>")
+def get_sets_by_color(color_id):
+    try:
+        result = []
+        with conn.cursor() as cur:
+            query = "SELECT set_id, brick_type_id, count FROM lego_inventory WHERE color_id = %s"
+            cur.execute(query, (color_id,))
+
+            rows = cur.fetchall()
+            for row in rows
+                result.append({"set_id": row[0], "brick_type_id": row[1], "count": row[2]})
+            
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"internal server error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
