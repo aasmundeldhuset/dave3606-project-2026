@@ -38,6 +38,7 @@ def sets():
                 for row in cur.fetchall():
                     html_safe_id = html.escape(row[0])
                     html_safe_name = html.escape(row[1])
+                    #what i changed
                     rows += f'<tr><td><a href="/set?id={html_safe_id}">{html_safe_id}</a></td><td>{html_safe_name}</td></tr>\n'
             print(f"Time to render all sets: {perf_counter() - start_time}")
     finally:
