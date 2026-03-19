@@ -43,11 +43,11 @@ cur.execute(
 cur.execute(
     """
     create table lego_inventory(
+        inv_id serial primary key,
         set_id text not null,
         brick_type_id text not null,
         color_id int not null,
         count int not null,
-        primary key (set_id, brick_type_id, color_id),
         foreign key (set_id) references lego_set(id),
         foreign key (brick_type_id, color_id) references lego_brick(brick_type_id, color_id)
     );
