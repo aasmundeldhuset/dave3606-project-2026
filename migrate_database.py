@@ -12,9 +12,9 @@ cur = conn.cursor()
 
 cur.execute(
     """
-    drop table if exists lego_set;
-    drop table if exists lego_brick;
-    drop table if exists lego_inventory;
+    drop table if exists lego_set cascade;
+    drop table if exists lego_brick cascade;
+    drop table if exists lego_inventory cascade;
     """
 )
 
@@ -43,11 +43,11 @@ cur.execute(
 cur.execute(
     """
     create table lego_inventory(
+        inv_id serial primary key,
         set_id text not null,
         brick_type_id text not null,
         color_id int not null,
         count int not null,
-        primary key (set_id, brick_type_id, color_id),
         foreign key (set_id) references lego_set(id),
         foreign key (brick_type_id, color_id) references lego_brick(brick_type_id, color_id)
     );
