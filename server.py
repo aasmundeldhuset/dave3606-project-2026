@@ -92,14 +92,54 @@ def legoSet():  # We don't want to call the function `set`, since that would hid
         return Response(content)
     except Exception as e:
         return jsonify({"internal server error": str(e)}), 500
-
+    
 
 @app.route("/api/set")
 def apiSet():
-    set_id = request.args.get("id")
-    result = {"set_id": set_id}
-    json_result = json.dumps(result, indent=4)
-    return Response(json_result, content_type="application/json")
+    try:
+        set_id = request.args.get("id", type=str)
+        if set_id is None:
+            return jsonify({"error": "Missing id parameter"}), 400
+        conn = get_conn()
+        with conn.cursor() as cur:
+
+            cur.execute("""
+                SELECT id, name, year, category, preview_image_url
+                FROM lego_set
+                WHERE id = %s
+            """, (set_id,))
+            set_row = cur.fetchone()
+
+            if set_row is None:
+                return jsonify({"error": "Set not found"}), 404
+
+            cur.execute("""
+                SELECT brick_type_id, color_id, count
+                FROM lego_inventory
+                WHERE set_id = %s
+            """, (set_id,))
+            inventory_rows = cur.fetchall()
+
+        result = {
+            "id": set_row[0],
+            "name": set_row[1],
+            "year": set_row[2],
+            "category": set_row[3],
+            "preview_image_url": set_row[4],
+            "inventory": [
+                {
+                    "brick_type_id": r[0],
+                    "color_id": r[1],
+                    "count": r[2]
+                }
+                for r in inventory_rows
+            ]
+        }
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"internal server error": str(e)}), 500
+    
 
 # Task 2 API endpoints:
 @app.route("/api/brick_type_in_sets/<brick_type_id>")
