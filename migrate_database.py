@@ -44,6 +44,8 @@ cur.execute(
     );
     """
 )
+cur.execute("CREATE INDEX ON lego_inventory (brick_type_id);")
+cur.execute("CREATE INDEX ON lego_inventory (color_id);")
 cur.close()
 conn.commit()
 conn.close()
