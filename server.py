@@ -3,6 +3,7 @@ import html
 import psycopg
 from flask import Flask, Response, request
 from time import perf_counter
+import gzip
 
 app = Flask(__name__)
 
@@ -17,14 +18,21 @@ DB_CONFIG = {
 
 @app.route("/")
 def index():
-    template = open("templates/index.html").read()
+    with open("templates/index.html", 'r') as f:
+        template = f.read()
     return Response(template)
 
 
 @app.route("/sets")
 def sets():
-    template = open("templates/sets.html").read()
+    with open("templates/sets.html", 'r') as f:
+        template = f.read()
     rows = ""
+
+    utfEncondings = ["UTF-8", "UTF-16-LE", "UTF-16-BE", "UTF-32-LE", "UTF-32-BE"]
+    getEncoding = request.args.get('encoding')
+    if (getEncoding is None or getEncoding.upper() not in utfEncondings):
+        getEncoding = "UTF-8"
 
     start_time = perf_counter()
     conn = psycopg.connect(**DB_CONFIG)
@@ -41,12 +49,16 @@ def sets():
         conn.close()
 
     page_html = template.replace("{ROWS}", rows)
-    return Response(page_html, content_type="text/html")
+    page_html = page_html.encode(encoding=getEncoding)
+    gzip_page_html = gzip.compress(page_html)
+
+    return Response(gzip_page_html, headers={"Content-Encoding": "gzip"}, content_type=f"text/html; charset={getEncoding.upper()}")
 
 
 @app.route("/set")
 def legoSet():  # We don't want to call the function `set`, since that would hide the `set` data type.
-    template = open("templates/set.html").read()
+    with open("templates/set.html", 'r') as f:
+        template = f.read()
     return Response(template)
 
 
