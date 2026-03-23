@@ -64,7 +64,6 @@ def apiSet():
     try:
         conn = psycopg.connect(**DB_CONFIG)
         with conn.cursor() as cur:
-#   cur.execute("select id, name, COALESCE(year::text, ''), category, preview_image_url from lego_set where id = %s", (set_id,))
             cur.execute("SELECT s.id, s.name, COALESCE(s.year::text, ''), s.category, s.preview_image_url, inv.brick_type_id, inv.color_id, inv.count FROM lego_set s LEFT JOIN lego_inventory inv ON s.id=inv.set_id WHERE s.id = %s", (set_id,))
             row = cur.fetchone()
             if row is not None:
@@ -88,33 +87,48 @@ def apiSet():
 @app.route("/api/binary/set")
 def apiBinarySet():
     set_id = request.args.get("id")
-    result = {"set_id": set_id}
-    
+    result = {"set_id": set_id,
+            "name": "",
+            "year": "",
+            "category": "",
+            "preview_image_url": "",
+            "inventory": []}
+    inventory = []
+    data = []
+
     try:
         conn = psycopg.connect(**DB_CONFIG)
         with conn.cursor() as cur:
-            cur.execute("select id, name, COALESCE(year::text, ''), category, preview_image_url from lego_set where id = %s", (set_id,))
+            cur.execute("SELECT s.id, s.name, COALESCE(s.year::text, ''), s.category, s.preview_image_url, inv.brick_type_id, inv.color_id, inv.count FROM lego_set s LEFT JOIN lego_inventory inv ON s.id=inv.set_id WHERE s.id = %s", (set_id,))
             row = cur.fetchone()
             if row is not None:
-                result["name"] = html.escape(row[1])
-                result["year"] = html.escape(row[2]) # kan bli null pga html.escape.
-                result["category"] = html.escape(row[3])
-                result["preview_image_url"] = html.escape(row[4])
+                data.append(struct.pack("I", len(result["set_id"])))
+                data.append(result["set_id"].encode("utf-8")) #set_id
+
+                data.append(struct.pack(">I", len(row[1])))
+                data.append(row[1].encode("utf-8")) #name
+
+                data.append(struct.pack(">H", len(str(row[2]))))
+                data.append(str(row[2]).encode("utf-8")) #year
+
+                data.append(struct.pack(">I", len(row[3])))
+                data.append(row[3].encode("utf-8")) #category
+
+                data.append(struct.pack(">I", len(row[4])))
+                data.append(row[4].encode("utf-8")) #preview_image_url
+    
+            for row in cur:
+                data.append(struct.pack(">I", len(row[5])))
+                data.append(str(row[5]).encode("utf-8")) #brick_type_id
+                data.append(struct.pack(">I", len(str(row[6]))))
+                data.append(str(row[6]).encode("utf-8")) #color_id
+                data.append(struct.pack(">I", len(str(row[7]))))
+                data.append(str(row[7]).encode("utf-8")) #count
     finally:
         conn.close()
     
-    svar = struct.pack("I", len(result["set_id"]))
-    svar += result["set_id"].encode("utf-8")
-    svar += struct.pack(">I", len(result["name"])) 
-    svar += result["name"].encode("utf-8")
-    svar += struct.pack(">H", len(result["year"])) 
-    svar += result["year"].encode("utf-8")
-    svar += struct.pack(">I", len(result["category"])) 
-    svar += result["category"].encode("utf-8")
-    svar += struct.pack(">I", len(result["preview_image_url"])) 
-    svar += result["preview_image_url"].encode("utf-8")
-
-    return Response(svar, content_type="application/octet-stream")
+    string = b"".join(data)
+    return Response(string, content_type="application/octet-stream")
 
 
 if __name__ == "__main__":
