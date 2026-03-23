@@ -60,14 +60,14 @@ while offset + 4 < len(res.content):
 
     offset += length
 
-    length = retLen(offset, ">I")
-    offset += 4
+    length = retLen(offset, ">B")
+    offset += 1
     color_id = retData(offset, length)
 
     offset += length
 
-    length = retLen(offset, ">I")
-    offset += 4
+    length = retLen(offset, ">H")
+    offset += 2
     count = retData(offset, length)
 
     result["inventory"].append({
@@ -76,10 +76,11 @@ while offset + 4 < len(res.content):
         "count": count
     })
 
-filename = input("Filename for result:")
-
-with open(filename, "w") as f:
+#filename = input("Filename for result:")
+filename = "result"
+with open(f"{filename}.json", "w") as f:
     json.dump(result, f, indent=4)
 
+print(size := len(res.content), "bytes received")
 
 
