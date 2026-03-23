@@ -120,9 +120,9 @@ def apiBinarySet():
             for row in cur:
                 data.append(struct.pack(">I", len(row[5])))
                 data.append(str(row[5]).encode("utf-8")) #brick_type_id
-                data.append(struct.pack(">I", len(str(row[6]))))
+                data.append(struct.pack(">B", len(str(row[6]))))
                 data.append(str(row[6]).encode("utf-8")) #color_id
-                data.append(struct.pack(">I", len(str(row[7]))))
+                data.append(struct.pack(">H", len(str(row[7]))))
                 data.append(str(row[7]).encode("utf-8")) #count
     finally:
         conn.close()
