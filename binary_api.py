@@ -55,15 +55,22 @@ while offset + 2 < len(res.content):
     color_id = 0
     count = 0
 
+    mix = res.content[offset]
+    if (mix==255):
+        offset += 1
+
+        color_id = struct.unpack_from(">B", res.content, offset)[0]
+        offset += 1
+        count = struct.unpack_from(">H", res.content, offset)[0]
+        offset +=2
+        
+    else:
+        color_id, count = struct.unpack_from(">BB", res.content, offset)
+        offset += 2
     length = retLen(offset, ">B")
     offset += 1
     brick_type_id = retData(offset, length)
-
     offset += length
-
-    color_id, count = struct.unpack_from(">BH", res.content, offset)
-
-    offset += 3
 
     result["inventory"].append({
         "brick_type_id": brick_type_id,

@@ -100,33 +100,31 @@ def apiBinarySet():
         conn = psycopg.connect(**DB_CONFIG)
         with conn.cursor() as cur:
             cur.execute("SELECT s.id, s.name, COALESCE(s.year::text, ''), s.category, s.preview_image_url, inv.brick_type_id, inv.color_id, inv.count FROM lego_set s LEFT JOIN lego_inventory inv ON s.id=inv.set_id WHERE s.id = %s", (set_id,))
-            row = cur.fetchone()
-            if row is not None:
+            rows = cur.fetchall()
+            firstrow = rows[0]
+            if firstrow is not None:
                 data.append(struct.pack("B", len(result["set_id"])))
                 data.append(result["set_id"].encode("utf-8")) #set_id
 
-                data.append(struct.pack(">B", len(row[1])))
-                data.append(row[1].encode("utf-8")) #name
+                data.append(struct.pack(">B", len(firstrow[1])))
+                data.append(firstrow[1].encode("utf-8")) #name
 
-             #   data.append(struct.pack(">B", len(str(row[2]))))
-              #  data.append(str(row[2]).encode("utf-8")) #year
+                data.append(struct.pack(">H", int(firstrow[2])))
 
-                data.append(struct.pack(">H", int(row[2])))
+                data.append(struct.pack(">B", len(firstrow[3])))
+                data.append(firstrow[3].encode("utf-8")) #category
 
-                data.append(struct.pack(">B", len(row[3])))
-                data.append(row[3].encode("utf-8")) #category
-
-                data.append(struct.pack(">H", len(row[4])))
-                data.append(row[4].encode("utf-8")) #preview_image_url
+                data.append(struct.pack(">H", len(firstrow[4])))
+                data.append(firstrow[4].encode("utf-8")) #preview_image_url
     
-            for row in cur:
+            for row in rows:
+                if(row[6] < 255 and row[7] < 256):
+                    cont_color_id = row[6] | 128
+                    data.append(struct.pack(">BB", row[6], row[7])) 
+                else:
+                    data.append(struct.pack(">BBH", 255,row[6], row[7])) #color_id, count #brick_type_id
                 data.append(struct.pack(">B", len(row[5]))) #max col 255 max count 3100
                 data.append(str(row[5]).encode("utf-8"))
-                data.append(struct.pack(">BH", row[6], row[7])) #brick_type_id, color_id, count #brick_type_id
-            #    data.append(struct.pack(">B", len(str(row[6]))))
-             #   data.append(str(row[6]).encode("utf-8")) #color_id
-              #  data.append(struct.pack(">B", len(str(row[7]))))
-               # data.append(str(row[7]).encode("utf-8")) #count
     finally:
         conn.close()
     
