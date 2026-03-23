@@ -56,7 +56,7 @@ while offset + 2 < len(res.content):
     count = 0
 
     mix = res.content[offset]
-    if (mix==255):
+    if (mix==255): # sjekk om kontroll byte
         offset += 1
 
         color_id = struct.unpack_from(">B", res.content, offset)[0]

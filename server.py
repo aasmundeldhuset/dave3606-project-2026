@@ -60,18 +60,18 @@ def apiSet():
             "category": "",
             "preview_image_url": "",
             "inventory": []}
-    inventory = []
     try:
         conn = psycopg.connect(**DB_CONFIG)
         with conn.cursor() as cur:
             cur.execute("SELECT s.id, s.name, COALESCE(s.year::text, ''), s.category, s.preview_image_url, inv.brick_type_id, inv.color_id, inv.count FROM lego_set s LEFT JOIN lego_inventory inv ON s.id=inv.set_id WHERE s.id = %s", (set_id,))
-            row = cur.fetchone()
-            if row is not None:
-                result["name"] = html.escape(row[1])
-                result["year"] = html.escape(row[2]) # kan bli null pga html.escape.
-                result["category"] = html.escape(row[3])
-                result["preview_image_url"] = html.escape(row[4])
-            for row in cur:
+            rows = cur.fetchall()
+            firstrow = rows[0]
+            if firstrow is not None:
+                result["name"] = html.escape(firstrow[1])
+                result["year"] = html.escape(firstrow[2]) # kan bli null pga html.escape.
+                result["category"] = html.escape(firstrow[3])
+                result["preview_image_url"] = html.escape(firstrow[4])
+            for row in rows:
                 result["inventory"].append({
                     "brick_type_id": html.escape(row[5]),
                     "color_id": html.escape(str(row[6])),
@@ -93,7 +93,6 @@ def apiBinarySet():
             "category": "",
             "preview_image_url": "",
             "inventory": []}
-    inventory = []
     data = []
 
     try:
@@ -119,7 +118,6 @@ def apiBinarySet():
     
             for row in rows:
                 if(row[6] < 255 and row[7] < 256):
-                    cont_color_id = row[6] | 128
                     data.append(struct.pack(">BB", row[6], row[7])) 
                 else:
                     data.append(struct.pack(">BBH", 255,row[6], row[7])) #color_id, count #brick_type_id
