@@ -102,27 +102,27 @@ def apiBinarySet():
             cur.execute("SELECT s.id, s.name, COALESCE(s.year::text, ''), s.category, s.preview_image_url, inv.brick_type_id, inv.color_id, inv.count FROM lego_set s LEFT JOIN lego_inventory inv ON s.id=inv.set_id WHERE s.id = %s", (set_id,))
             row = cur.fetchone()
             if row is not None:
-                data.append(struct.pack("I", len(result["set_id"])))
+                data.append(struct.pack("B", len(result["set_id"])))
                 data.append(result["set_id"].encode("utf-8")) #set_id
 
-                data.append(struct.pack(">I", len(row[1])))
+                data.append(struct.pack(">B", len(row[1])))
                 data.append(row[1].encode("utf-8")) #name
 
-                data.append(struct.pack(">H", len(str(row[2]))))
+                data.append(struct.pack(">B", len(str(row[2]))))
                 data.append(str(row[2]).encode("utf-8")) #year
 
-                data.append(struct.pack(">I", len(row[3])))
+                data.append(struct.pack(">B", len(row[3])))
                 data.append(row[3].encode("utf-8")) #category
 
-                data.append(struct.pack(">I", len(row[4])))
+                data.append(struct.pack(">H", len(row[4])))
                 data.append(row[4].encode("utf-8")) #preview_image_url
     
             for row in cur:
-                data.append(struct.pack(">I", len(row[5])))
+                data.append(struct.pack(">B", len(row[5])))
                 data.append(str(row[5]).encode("utf-8")) #brick_type_id
                 data.append(struct.pack(">B", len(str(row[6]))))
                 data.append(str(row[6]).encode("utf-8")) #color_id
-                data.append(struct.pack(">H", len(str(row[7]))))
+                data.append(struct.pack(">B", len(str(row[7]))))
                 data.append(str(row[7]).encode("utf-8")) #count
     finally:
         conn.close()
