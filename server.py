@@ -44,7 +44,13 @@ def sets():
     finally:
         conn.close()
 
+    prev_page = page - 1 if page > 1 else 1
+    next_page = page + 1
+
     page_html = template.replace("{ROWS}", "".join(rows))
+    page_html = page_html.replace("{CURRENT_PAGE}", str(page))
+    page_html = page_html.replace("{PREV_PAGE}", str(prev_page))
+    page_html = page_html.replace("{NEXT_PAGE}", str(next_page))
     return Response(page_html, content_type="text/html")
 
 @app.route("/set")
