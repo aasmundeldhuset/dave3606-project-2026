@@ -2,7 +2,7 @@ import json
 
 import requests
 import struct
-setid = "10220-1"
+setid = "10312-1"
 result = {"set_id": setid,
         "name": "",
         "year": "",
@@ -15,6 +15,9 @@ def retLen(offset, format):
 
 def retData(offset, length):
     return res.content[offset:offset+length].decode("utf-8")
+
+def retDataRaw(offset, length):
+    return res.content[offset:offset+length]
 
 length = 0
 offset = 0
@@ -31,11 +34,9 @@ result["name"] = retData(offset, length)
 
 offset += length
 
-length = retLen(offset, ">B")
-offset += 1
-result["year"] = retData(offset, length)
+result["year"] = struct.unpack_from(">H", res.content, offset)[0]
 
-offset += length
+offset += 2
 
 length = retLen(offset, ">B")
 offset += 1
@@ -47,12 +48,12 @@ length = retLen(offset, ">H")
 offset += 2
 result["preview_image_url"] = retData(offset, length)
 
-while offset + 1 < len(res.content):
+offset += length
+
+while offset + 2 < len(res.content):
     brick_type_id = 0
     color_id = 0
     count = 0
-
-    offset += length
 
     length = retLen(offset, ">B")
     offset += 1
@@ -60,15 +61,9 @@ while offset + 1 < len(res.content):
 
     offset += length
 
-    length = retLen(offset, ">B")
-    offset += 1
-    color_id = retData(offset, length)
+    color_id, count = struct.unpack_from(">BH", res.content, offset)
 
-    offset += length
-
-    length = retLen(offset, ">B")
-    offset += 1
-    count = retData(offset, length)
+    offset += 3
 
     result["inventory"].append({
         "brick_type_id": brick_type_id,
