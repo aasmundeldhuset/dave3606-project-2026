@@ -76,7 +76,9 @@ while offset + 4 < len(res.content):
         "count": count
     })
 
-with open("result.json", "w") as f:
+filename = input("Filename for result:")
+
+with open(filename, "w") as f:
     json.dump(result, f, indent=4)
 
 
