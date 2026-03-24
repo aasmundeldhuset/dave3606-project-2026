@@ -115,14 +115,19 @@ def apiBinarySet():
 
                 data.append(struct.pack(">H", len(firstrow[4])))
                 data.append(firstrow[4].encode("utf-8")) #preview_image_url
-    
             for row in rows:
                 if(row[6] < 255 and row[7] < 256):
                     data.append(struct.pack(">BB", row[6], row[7])) 
                 else:
-                    data.append(struct.pack(">BBH", 255,row[6], row[7])) #color_id, count #brick_type_id
-                data.append(struct.pack(">B", len(row[5]))) #max col 255 max count 3100
-                data.append(str(row[5]).encode("utf-8"))
+                    data.append(struct.pack(">BBH", 255,row[6], row[7])) #color_id, count #max col 255 max count 3100
+
+                if(row[5].isdigit() and int(row[5]) < 65535): #4 byte
+                    diglen = 200 + len(row[5])
+                    data.append(struct.pack(">B", diglen)) # siden utf 8 encoding dyrt så kan vi sende tall som vanlig
+                    data.append(struct.pack(">H", int(row[5])))
+                else:
+                    data.append(struct.pack(">B", len(row[5]))) 
+                    data.append(str(row[5]).encode("utf-8"))
     finally:
         conn.close()
     
@@ -133,4 +138,5 @@ def apiBinarySet():
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
 
-# Note: If you define new routes, they have to go above the call to `app.run`.
+
+## send en byte med størrelse 200 + lengden av brick_Type_id om den er tall

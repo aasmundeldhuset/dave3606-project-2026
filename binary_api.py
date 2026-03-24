@@ -67,10 +67,17 @@ while offset + 2 < len(res.content):
     else:
         color_id, count = struct.unpack_from(">BB", res.content, offset)
         offset += 2
-    length = retLen(offset, ">B")
-    offset += 1
-    brick_type_id = retData(offset, length)
-    offset += length
+    digcheck = res.content[offset]
+    if(digcheck >= 200): # sjekk om kontroll byte for tall
+        offset += 1
+        digint = digcheck - 200
+        brick_type_id = str(struct.unpack_from(">H", res.content, offset)[0])
+        offset += 2
+    else:
+        length = retLen(offset, ">B")
+        offset += 1
+        brick_type_id = retData(offset, length)
+        offset += length
 
     result["inventory"].append({
         "brick_type_id": brick_type_id,
