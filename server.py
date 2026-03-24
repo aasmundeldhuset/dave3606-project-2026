@@ -120,11 +120,14 @@ def apiBinarySet():
                     data.append(struct.pack(">BB", row[6], row[7])) 
                 else:
                     data.append(struct.pack(">BBH", 255,row[6], row[7])) #color_id, count #max col 255 max count 3100
-
-                if(row[5].isdigit() and int(row[5]) < 65535): #4 byte
-                    diglen = 200 + len(row[5])
-                    data.append(struct.pack(">B", diglen)) # siden utf 8 encoding dyrt så kan vi sende tall som vanlig
+                if(row[5].isdigit() and int(row[5]) < 65536): # #ingen brick_type_id er over 50 karakterer
+                    diglen = 100 + len(row[5])
+                    data.append(struct.pack(">B", diglen))
                     data.append(struct.pack(">H", int(row[5])))
+                elif(row[5].isdigit() and int(row[5]) < 4294967296):
+                    diglen = 200 + len(row[5])
+                    data.append(struct.pack(">B", diglen))
+                    data.append(struct.pack(">I", int(row[5])))
                 else:
                     data.append(struct.pack(">B", len(row[5]))) 
                     data.append(str(row[5]).encode("utf-8"))

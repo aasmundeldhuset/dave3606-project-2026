@@ -68,11 +68,16 @@ while offset + 2 < len(res.content):
         color_id, count = struct.unpack_from(">BB", res.content, offset)
         offset += 2
     digcheck = res.content[offset]
-    if(digcheck >= 200): # sjekk om kontroll byte for tall
+    if(digcheck >= 100 and digcheck < 200): # tall under 2^16
         offset += 1
-        digint = digcheck - 200
+        digint = digcheck - 100
         brick_type_id = str(struct.unpack_from(">H", res.content, offset)[0])
         offset += 2
+    elif(digcheck >= 200): # 200 er for tall over 2^16
+        offset += 1
+        digint = digcheck - 200
+        brick_type_id = str(struct.unpack_from(">I", res.content, offset)[0])
+        offset += 4
     else:
         length = retLen(offset, ">B")
         offset += 1
