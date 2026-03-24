@@ -29,7 +29,6 @@
             fetch(`/api/set?id=${setId}`)
                 .then(function(setData) { return setData.json(); })
                 .then(function(setJson) {
-                    
                     setIdHtml.innerHTML = setJson.id
                     setNameHtml.innerHTML = setJson.name
                     const inventoryTable = document.getElementById("inventory");
