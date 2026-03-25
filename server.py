@@ -1,6 +1,7 @@
 import json
 import html
 import psycopg
+import struct
 from flask import Flask, Response, render_template, request
 from time import perf_counter
 import gzip

@@ -19,7 +19,8 @@ def retLen(offset, format):
 def retData(offset, length):
     return res.content[offset:offset+length].decode("utf-8")
 
-length, offset = 0
+length = 0
+offset = 0
 res = requests.get(f"http://localhost:5000/api/binary/set?id={setid}")
 length = retLen(offset, "B")
 offset += 1
