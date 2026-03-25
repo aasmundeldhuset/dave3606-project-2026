@@ -7,8 +7,10 @@ import struct
 from flask import Flask, Response, request, jsonify, g
 from time import perf_counter
 from psycopg_pool import ConnectionPool
+from LRU import LRUCache
 
 app = Flask(__name__)
+cache = LRUCache(100)
 
 DB_CONFIG = {
     "host": "localhost",
@@ -53,7 +55,6 @@ def index():
 def sets():
     rows_list = []
     start_time = perf_counter()
-
     supported_encodings = {"UTF-16-LE", "UTF-16-BE", "UTF-32-LE", "UTF-32-BE", "UTF-8"}
     encoding = request.args.get("charset", "UTF-8").upper() # This is the user defined encoding from "sets/?charset=UTF-16-LE", with a default value of "UTF-8"
     if encoding not in supported_encodings:
@@ -81,7 +82,7 @@ def sets():
 
         page_html_bytes = page_html.encode(encoding)
         compressed_bytes = gzip.compress(page_html_bytes)
-        return Response(compressed_bytes, content_type=f"text/html; charset={encoding}", headers={"Content-Encoding": "gzip"})
+        return Response(compressed_bytes, content_type=f"text/html; charset={encoding}", headers={"Content-Encoding": "gzip", "Cache-Control": "max-age=60"})
     except Exception as e:
         return jsonify({"internal server error": str(e)}), 500
 
@@ -101,44 +102,53 @@ def apiSet():
         set_id = request.args.get("id", type=str)
         if set_id is None:
             return jsonify({"error": "Missing id parameter"}), 400
+        
+        
+        if cache.get(set_id) != -1:
+            return Response(cache.get(set_id), content_type="application/json")
+        else:
+            conn = get_conn()
+            with conn.cursor() as cur:
 
-        conn = get_conn()
-        with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, name, year, category, preview_image_url
+                    FROM lego_set
+                    WHERE id = %s
+                """, (set_id,))
+                set_row = cur.fetchone()
 
-            cur.execute("""
-                SELECT id, name, year, category, preview_image_url
-                FROM lego_set
-                WHERE id = %s
-            """, (set_id,))
-            set_row = cur.fetchone()
+                if set_row is None:
+                    return jsonify({"error": "Set not found"}), 404
 
-            if set_row is None:
-                return jsonify({"error": "Set not found"}), 404
+                cur.execute("""
+                    SELECT lego_inventory.brick_type_id, lego_inventory.color_id, lego_inventory.count, lego_brick.preview_image_url
+                    FROM lego_inventory
+                    LEFT JOIN lego_brick ON (
+                        lego_inventory.brick_type_id = lego_brick.brick_type_id AND lego_inventory.color_id = lego_brick.color_id 
+                            )
+                    WHERE set_id = %s
+                """, (set_id,))
+                inventory_rows = cur.fetchall()
 
-            cur.execute("""
-                SELECT brick_type_id, color_id, count
-                FROM lego_inventory
-                WHERE set_id = %s
-            """, (set_id,))
-            inventory_rows = cur.fetchall()
-
-        result = {
-            "id": set_row[0],
-            "name": set_row[1],
-            "year": set_row[2],
-            "category": set_row[3],
-            "preview_image_url": set_row[4],
-            "inventory": [
-                {
-                    "brick_type_id": r[0],
-                    "color_id": r[1],
-                    "count": r[2]
-                }
-                for r in inventory_rows
-            ]
-        }
-
-        return jsonify(result)
+            result = {
+                "id": set_row[0],
+                "name": set_row[1],
+                "year": set_row[2],
+                "category": set_row[3],
+                "preview_image_url": set_row[4],
+                "inventory": [
+                    {
+                        "brick_type_id": r[0],
+                        "color_id": r[1],
+                        "count": r[2],
+                        "preview_image_url": r[3]
+                    }
+                    for r in inventory_rows
+                ]
+            }
+            json_result = json.dumps(result)
+            cache.put(set_id, json_result)
+            return Response(json_result, content_type="application/json")
 
     except Exception as e:
         return jsonify({"internal server error": str(e)}), 500
