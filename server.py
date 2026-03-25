@@ -17,7 +17,8 @@ DB_CONFIG = {
 
 @app.route("/")
 def index():
-    template = open("templates/index.html").read()
+    with open("templates/sets.html", encoding="utf-8") as f:
+        template = f.read()
     return Response(template)
 
 
