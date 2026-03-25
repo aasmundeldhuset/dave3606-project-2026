@@ -17,14 +17,14 @@ DB_CONFIG = {
 
 @app.route("/")
 def index():
-    with open("templates/sets.html", encoding="utf-8") as f:
-        template = f.read()
+    template = open("templates/indez.html").read()
     return Response(template)
 
 
 @app.route("/sets")
 def sets():
-    template = open("templates/sets.html").read()
+    with open("templates/sets.html", encoding="utf-8") as f:
+        template = f.read()
     rows = ""
 
     start_time = perf_counter()
