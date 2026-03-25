@@ -2,7 +2,10 @@ import json
 
 import requests
 import struct
+
 setid = "10312-1"
+filename = "result"
+
 result = {"set_id": setid,
         "name": "",
         "year": "",
@@ -16,11 +19,7 @@ def retLen(offset, format):
 def retData(offset, length):
     return res.content[offset:offset+length].decode("utf-8")
 
-def retDataRaw(offset, length):
-    return res.content[offset:offset+length]
-
-length = 0
-offset = 0
+length, offset = 0
 res = requests.get(f"http://localhost:5000/api/binary/set?id={setid}")
 length = retLen(offset, "B")
 offset += 1
@@ -90,8 +89,6 @@ while offset + 2 < len(res.content):
         "count": count
     })
 
-#filename = input("Filename for result:")
-filename = "result"
 with open(f"{filename}.json", "w") as f:
     json.dump(result, f, indent=4)
 
