@@ -1,6 +1,7 @@
 import json
 import html
 import psycopg
+import gzip
 from flask import Flask, Response, request
 from time import perf_counter
 
@@ -17,13 +18,26 @@ DB_CONFIG = {
 
 @app.route("/")
 def index():
-    template = open("templates/index.html").read()
+    # Fix file leak with open
+    with open("templates/index.html") as f:
+        template = f.read()
     return Response(template)
 
 
 @app.route("/sets")
 def sets():
-    template = open("templates/sets.html").read()
+
+    # Read encoding from query parameter (default utf-8)
+    # Encode HTML before sending response
+    encoding = request.args.get("encoding", "utf-8")
+
+    if encoding not in ["utf-8", "utf-16"]:
+        encoding = "utf-8"
+
+    # Use 'with open' to ensure file is closed properly (avoid file handle leaks)
+    with open("templates/sets.html") as f:
+        template = f.read()
+    
     rows = ""
 
     start_time = perf_counter()
@@ -41,12 +55,29 @@ def sets():
         conn.close()
 
     page_html = template.replace("{ROWS}", rows)
-    return Response(page_html, content_type="text/html")
+    
+    # Remove UTF-8 meta tag when using utf-16 to avoid conflicts
+    if encoding != "utf-8":
+        page_html = page_html.replace('<meta charset="UTF-8">', '')
+
+    # encode
+    encoded_html = page_html.encode(encoding)
+
+    # Compress response using gzip to reduce response size
+    compressed = gzip.compress(encoded_html)
+
+    return Response(
+        compressed,
+        content_type=f"text/html; charset={encoding}",
+        headers={"Content-Encoding": "gzip"}
+    )    
 
 
 @app.route("/set")
 def legoSet():  # We don't want to call the function `set`, since that would hide the `set` data type.
-    template = open("templates/set.html").read()
+    # Fix file leak
+    with open("templates/set.html") as f:
+        template = f.read()
     return Response(template)
 
 
