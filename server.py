@@ -70,4 +70,5 @@ if __name__ == "__main__":
 
 # Note: If you define new routes, they have to go above the call to `app.run`.
 
-# Test123
+# Husk å pull før du pusher!
+# Task 1
