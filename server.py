@@ -1,6 +1,7 @@
 import json
 import html
 import psycopg
+import gzip
 from flask import Flask, Response, request
 from time import perf_counter
 from database import Database
@@ -17,8 +18,8 @@ DB_CONFIG = {
 
 DB = Database(config=DB_CONFIG)
 
-def get_all_sets_html(database):
-    with open("templates/sets.html") as f:
+def get_all_sets_html(database, meta_charset):
+    with open("templates/sets.html", encoding="utf-8") as f:
         template = f.read()
     rows = ""
     start_time = perf_counter()
@@ -28,10 +29,10 @@ def get_all_sets_html(database):
         html_safe_name = html.escape(row[1])
         rows+= f'<tr><td><a href="/set?id={html_safe_id}">{html_safe_id}</a></td><td>{html_safe_name}</td></tr>\n'
     print(f"Time to render all sets: {perf_counter() - start_time}")
-    return template.replace("{ROWS}", rows)
+    return template.replace("{META_CHARSET}", meta_charset).replace("{ROWS}", rows)
 
 def get_set_html(database, set_id):
-    with open("templates/set.html") as f:
+    with open("templates/set.html", encoding="utf-8") as f:
         template = f.read()
     return template
 
@@ -60,15 +61,22 @@ def get_set_json(database, set_id):
 
 @app.route("/")
 def index():
-    with open("templates/index.html") as f:
+    with open("templates/index.html", encoding="utf-8") as f:
         template = f.read()
     return Response(template)
 
 
 @app.route("/sets")
 def sets():
-    html_output = get_all_sets_html(DB)
-    return Response(html_output, content_type="text/html")
+    encoding = request.args.get("encoding", "utf-8")
+    if encoding not in ["utf-8", "utf-16"]:
+        encoding = "utf-8"
+    meta_charset = '<meta charset="UTF-8">' if encoding == "utf-8" else ""
+    html_output = get_all_sets_html(DB, meta_charset)
+    body = html_output.encode(encoding)
+    compressed_body = gzip.compress(body)
+    return Response(compressed_body, content_type=f"text/html; charset={encoding}", 
+                    headers={"Content-Encoding": "gzip"})
 
 
 @app.route("/set")
