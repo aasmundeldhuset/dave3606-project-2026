@@ -17,7 +17,7 @@ DB_CONFIG = {
 
 @app.route("/")
 def index():
-    template = open("templates/indez.html").read()
+    template = open("templates/index.html").read()
     return Response(template)
 
 
@@ -25,7 +25,8 @@ def index():
 def sets():
     with open("templates/sets.html", encoding="utf-8") as f:
         template = f.read()
-    rows_parts = []
+        
+    row_parts = []
 
     start_time = perf_counter()
     conn = psycopg.connect(**DB_CONFIG)
@@ -41,7 +42,7 @@ def sets():
                     f'<td>{html_safe_name}</td></tr>\n'
                 )
 
-        rows ="".join(row_parts)
+        rows = "".join(row_parts)
         print(f"Time to render all sets: {perf_counter() - start_time}")
     finally:
         conn.close()
