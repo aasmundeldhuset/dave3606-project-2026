@@ -30,7 +30,7 @@ def sets():
         template = f.read()
     rows = []
 
-    utfEncondings = ["UTF-8", "UTF-16", "UTF-16"]
+    utfEncondings = ["UTF-8", "UTF-16"]
     getEncoding = request.args.get('encoding')
     if (getEncoding is None or getEncoding.upper() not in utfEncondings):
         getEncoding = "UTF-8"
