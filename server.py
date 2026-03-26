@@ -35,7 +35,7 @@ def get_set_json(set_id):
 
             # hent inventory
             cur.execute(
-                SELECT brick_type_id, color_id, count FROM lego_inventory WHERE set_id = %s
+                "SELECT brick_type_id, color_id, count FROM lego_inventory WHERE set_id = %s",
                 (set_id,)
             )
             inventory_rows = cur.fetchall()
