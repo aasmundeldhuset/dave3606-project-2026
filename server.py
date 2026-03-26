@@ -18,12 +18,56 @@ DB_CONFIG = {
 SET_CACHE = OrderedDict()
 MAX_CACHE_SIZE = 100
 
+def get_set_json(set_id):
+    conn = psycopg.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cur:
+
+            # hent set info
+            cur.execute(
+                "SELECT id, name, year, category FROM lego_set WHERE id = %s",
+                (set_id,)
+            )
+            set_row = cur.fetchone()
+
+            if not set_row:
+                return json.dumps({"error": "Set not found"}, indent=4)
+
+            # hent inventory
+            cur.execute(
+                "SELECT brick_type_id, color_id, quantity FROM lego_inventory WHERE set_id = %s",
+                (set_id,)
+            )
+            inventory_rows = cur.fetchall()
+
+            result = {
+                "set": {
+                    "id": set_row[0],
+                    "name": set_row[1],
+                    "year": set_row[2],
+                    "category": set_row[3],
+                },
+                "inventory": []
+            }
+
+            for row in inventory_rows:
+                result["inventory"].append({
+                    "brick_type_id": row[0],
+                    "color_id": row[1],
+                    "count": row[2],
+                })
+
+            return json.dumps(result, indent=4)
+
+    finally:
+        conn.close()
+
 def get_cached_set_json(set_id):
     if set_id in SET_CACHE:
         SET_CACHE.move_to_end(set_id)
         return SET_CACHE[set_id]
 
-    json_output = get_set_json(DB, set_id)
+    json_output = get_set_json(set_id)
 
     SET_CACHE[set_id] = json_output
     SET_CACHE.move_to_end(set_id)
@@ -68,7 +112,7 @@ def sets():
     page_html = template.replace("{ROWS}", rows)
     response = Response(page_html, content_type="text/html")
     response.headers["Cache-Control"] = "public, max-age=60"
-    return Response
+    return response
 
 
 @app.route("/set")
