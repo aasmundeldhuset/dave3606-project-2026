@@ -66,7 +66,9 @@ def sets():
         conn.close()
 
     page_html = template.replace("{ROWS}", rows)
-    return Response(page_html, content_type="text/html")
+    response = Response(page_html, content_type="text/html")
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return Response
 
 
 @app.route("/set")
@@ -78,8 +80,7 @@ def legoSet():  # We don't want to call the function `set`, since that would hid
 @app.route("/api/set")
 def apiSet():
     set_id = request.args.get("id")
-    result = {"set_id": set_id}
-    json_result = json.dumps(result, indent=4)
+    json_result = get_cached_set_json(set_id)
     return Response(json_result, content_type="application/json")
 
 
