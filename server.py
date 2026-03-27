@@ -5,6 +5,7 @@ import gzip
 import struct
 from flask import Flask, Response, request
 from time import perf_counter
+from collections import OrderedDict
 
 app = Flask(__name__)
 
@@ -16,6 +17,8 @@ DB_CONFIG = {
     "password": "bricks",
 }
 
+SET_CACHE = OrderedDict()
+CACHE_LIMIT = 100
 
 @app.route("/")
 def index():
@@ -72,10 +75,13 @@ def sets():
     compressed = gzip.compress(encoded_html)
 
     return Response(
-        compressed,
-        content_type=f"text/html; charset={encoding}",
-        headers={"Content-Encoding": "gzip"}
-    )    
+    compressed,
+    content_type=f"text/html; charset={encoding}",
+    headers={
+        "Content-Encoding": "gzip",
+        "Cache-Control": "max-age=60"
+    }
+)    
 
 
 @app.route("/set")
@@ -89,6 +95,13 @@ def legoSet():  # We don't want to call the function `set`, since that would hid
 @app.route("/api/set")
 def apiSet():
     set_id = request.args.get("id")
+    if set_id in SET_CACHE:
+        cached_result = SET_CACHE.pop(set_id)
+        SET_CACHE[set_id] = cached_result
+        return Response(
+            json.dumps(cached_result, indent=4),
+            content_type="application/json",
+        )
 
     if set_id is None:
         return Response(
@@ -156,6 +169,13 @@ def apiSet():
             ],
         }
 
+        if set_id in SET_CACHE:
+            SET_CACHE.pop(set_id)
+
+        SET_CACHE[set_id] = result
+
+        if len(SET_CACHE) > CACHE_LIMIT:
+            SET_CACHE.popitem(last=False)
         return Response(json.dumps(result, indent=4), content_type="application/json")
 
     finally:
