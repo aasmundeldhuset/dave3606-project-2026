@@ -2,6 +2,7 @@ import json
 import html
 import psycopg
 import gzip
+import struct
 from flask import Flask, Response, request
 from time import perf_counter
 
@@ -108,6 +109,154 @@ def get_api_set_json(set_id):
     result = {"set_id": set_id}
     return json.dumps(result, indent=4)
 
+    if set_id is None:
+        return Response(
+            json.dumps({"error": "Missing id parameter"}, indent=4),
+            status=400,
+            content_type="application/json",
+        )
+
+    conn = psycopg.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cur:
+            # Get set info
+            cur.execute(
+                """
+                select id, name, year, category, preview_image_url
+                from lego_set
+                where id = %s
+                """,
+                (set_id,),
+            )
+            set_row = cur.fetchone()
+
+            if set_row is None:
+                return Response(
+                    json.dumps({"error": "Set not found"}, indent=4),
+                    status=404,
+                    content_type="application/json",
+                )
+
+            # Get inventory
+            cur.execute(
+                """
+                select
+                    i.brick_type_id,
+                    i.color_id,
+                    i.count,
+                    b.name,
+                    b.preview_image_url
+                from lego_inventory i
+                left join lego_brick b
+                    on i.brick_type_id = b.brick_type_id
+                   and i.color_id = b.color_id
+                where i.set_id = %s
+                order by i.brick_type_id, i.color_id
+                """,
+                (set_id,),
+            )
+            inventory_rows = cur.fetchall()
+
+        result = {
+            "id": set_row[0],
+            "name": set_row[1],
+            "year": set_row[2],
+            "category": set_row[3],
+            "preview_image_url": set_row[4],
+            "inventory": [
+                {
+                    "brick_type_id": row[0],
+                    "color_id": row[1],
+                    "count": row[2],
+                    "brick_name": row[3],
+                    "brick_preview_image_url": row[4],
+                }
+                for row in inventory_rows
+            ],
+        }
+
+        return Response(json.dumps(result, indent=4), content_type="application/json")
+
+    finally:
+        conn.close()
+
+@app.route("/api/set_binary")
+def apiSetBinary():
+    set_id = request.args.get("id")
+
+    if set_id is None:
+        return Response(
+            b"Missing id parameter",
+            status=400,
+            content_type="application/octet-stream",
+        )
+
+    conn = psycopg.connect(**DB_CONFIG)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                select id, name, year, category, preview_image_url
+                from lego_set
+                where id = %s
+                """,
+                (set_id,),
+            )
+            set_row = cur.fetchone()
+
+            if set_row is None:
+                return Response(
+                    b"Set not found",
+                    status=404,
+                    content_type="application/octet-stream",
+                )
+
+            cur.execute(
+                """
+                select
+                    i.brick_type_id,
+                    i.color_id,
+                    i.count,
+                    b.name,
+                    b.preview_image_url
+                from lego_inventory i
+                left join lego_brick b
+                    on i.brick_type_id = b.brick_type_id
+                   and i.color_id = b.color_id
+                where i.set_id = %s
+                order by i.brick_type_id, i.color_id
+                """,
+                (set_id,),
+            )
+            inventory_rows = cur.fetchall()
+
+        data = b""
+
+        data += pack_string(set_row[0])
+        data += pack_string(set_row[1])
+        data += struct.pack("!i", set_row[2] if set_row[2] is not None else -1)
+        data += pack_string(set_row[3])
+        data += pack_string(set_row[4])
+
+        data += struct.pack("!I", len(inventory_rows))
+
+        for row in inventory_rows:
+            data += pack_string(row[0])
+            data += struct.pack("!i", row[1])
+            data += struct.pack("!i", row[2])
+            data += pack_string(row[3])
+            data += pack_string(row[4])
+
+        return Response(data, content_type="application/octet-stream")
+
+    finally:
+        conn.close()
+
+def pack_string(value):
+    if value is None:
+        value = ""
+    encoded = value.encode("utf-8")
+    return struct.pack("!I", len(encoded)) + encoded
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
