@@ -60,7 +60,7 @@ def get_set_json(database, set_id):
         "inventory": [],
     }
 
-    for row in database.execute_and_fetch_all(query_inventory, (set_id)):
+    for row in database.execute_and_fetch_all(query_inventory, (set_id,)):
         result["inventory"].append({
             "brick_type_id": row[0],
             "color_id": row [1],
@@ -113,7 +113,7 @@ def apiSet():
     set_id = request.args.get("id")
     database = Database(DB_CONFIG)
     json_output = get_cached_set_json(database, set_id)
-    return Response(json_result, content_type="application/json")
+    return Response(json_output, content_type="application/json")
 
 
 if __name__ == "__main__":
