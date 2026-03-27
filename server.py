@@ -15,6 +15,36 @@ DB_CONFIG = {
     "password": "bricks",
 }
 
+# Datbase wrapper class to abstract psycopg usage
+class Database:
+    def __init__(self):
+        self.conn = psycopg.connect(**DB_CONFIG)
+        self.cur = self.conn.cursor()
+
+    def execute_and_fetch_all(self, query):
+        self.cur.execute(query)
+        return self.cur.fetchall()
+
+    def close(self):
+        self.cur.close()
+        self.conn.close()
+
+# Function separated from endpoint (for testability)
+def get_sets_html(db):
+    row_parts = []
+
+    rows = db.execute_and_fetch_all(
+        "select id, name from lego_set order by id"
+    )
+
+    for row in rows:
+        html_safe_id = html.escape(row[0])
+        html_safe_name = html.escape(row[1])
+        row_parts.append(
+            f'<tr><td><a href="/set?id={html_safe_id}">{html_safe_id}</a></td><td>{html_safe_name}</td></tr>'
+        )
+
+    return "".join(row_parts)
 
 @app.route("/")
 def index():
@@ -26,55 +56,37 @@ def index():
 
 @app.route("/sets")
 def sets():
-    template = open("templates/sets.html").read()
-    row_parts = []
-
-    # Read encoding from query parameter (default utf-8)
-    # Encode HTML before sending response
+   # encoding
     encoding = request.args.get("encoding", "utf-8")
-
     if encoding not in ["utf-8", "utf-16"]:
         encoding = "utf-8"
 
-    # Use 'with open' to ensure file is closed properly (avoid file handle leaks)
+    # template
     with open("templates/sets.html") as f:
         template = f.read()
-    
-    rows = ""
 
-    start_time = perf_counter()
-    conn = psycopg.connect(**DB_CONFIG)
+    # dependency injection
+    db = Database()
     try:
-        with conn.cursor() as cur:
-            cur.execute("select id, name from lego_set order by id")
-            for row in cur.fetchall():
-                html_safe_id = html.escape(row[0])
-                html_safe_name = html.escape(row[1])
-                row_parts.append(
-                    f'<tr><td><a href="/set?id={html_safe_id}">{html_safe_id}</a></td><td>{html_safe_name}</td></tr>'
-                )
-        print(f"Time to render all sets: {perf_counter() - start_time}")
+        rows_html = get_sets_html(db)
     finally:
-        conn.close()
+        db.close()
 
-    rows = "".join(row_parts)
-    page_html = template.replace("{ROWS}", rows)
-    
-    # Remove UTF-8 meta tag when using utf-16 to avoid conflicts
+    page_html = template.replace("{ROWS}", rows_html)
+
+    # encoding fix
     if encoding != "utf-8":
         page_html = page_html.replace('<meta charset="UTF-8">', '')
 
-    # encode
+    # Encode and compress response
     encoded_html = page_html.encode(encoding)
-
-    # Compress response using gzip to reduce response size
     compressed = gzip.compress(encoded_html)
 
     return Response(
         compressed,
         content_type=f"text/html; charset={encoding}",
         headers={"Content-Encoding": "gzip"}
-    )    
+    )
 
 
 @app.route("/set")
@@ -88,9 +100,13 @@ def legoSet():  # We don't want to call the function `set`, since that would hid
 @app.route("/api/set")
 def apiSet():
     set_id = request.args.get("id")
+    result = get_api_set_json(set_id)
+    return Response(result, content_type="application/json")
+
+# Separate function for JSON generation (testable)
+def get_api_set_json(set_id):
     result = {"set_id": set_id}
-    json_result = json.dumps(result, indent=4)
-    return Response(json_result, content_type="application/json")
+    return json.dumps(result, indent=4)
 
 
 if __name__ == "__main__":
