@@ -42,49 +42,33 @@ def get_set_html(database, set_id):
             template = f.read()
     return template
 
-def get_set_json(set_id):
-    conn = psycopg.connect(**DB_CONFIG)
-    try:
-        with conn.cursor() as cur:
+def get_set_json(database, set_id):
+    query_set = "SELECT id, name, year category FROM lego_set WHERE id = %s"
+    query_inventory = "SELECT brick_type_type_id, color_id, count FROM lego_inventory WHERE set_id = %s"
 
-            # hent set info
-            cur.execute(
-                "SELECT id, name, year, category FROM lego_set WHERE id = %s",
-                (set_id,)
-            )
-            set_row = cur.fetchone()
+    set_rows = database.execute_and_fetch_all(query_set, (set_id, ))
+    if not set_rows:
+        return json.dumps({"error": "Set not found"}, indent=4)
+    
+    result = {
+        "set": {
+            "id": set_rows[0][0],
+            "name": set_rows[0][1],
+            "year": set_rows[0][2],
+            "category": set_rows[0][3],
+        },
+        "inventory": [],
+    }
 
-            if not set_row:
-                return json.dumps({"error": "Set not found"}, indent=4)
+    for row in database.execute_and_fetch_all(query_inventory, (set_id)):
+        result["inventory"].append({
+            "brick_type_id": row[0],
+            "color_id": row [1],
+            "category": row[2],
+        })
 
-            # hent inventory
-            cur.execute(
-                "SELECT brick_type_id, color_id, count FROM lego_inventory WHERE set_id = %s",
-                (set_id,)
-            )
-            inventory_rows = cur.fetchall()
+    return json.dumps(result, indent=4)
 
-            result = {
-                "set": {
-                    "id": set_row[0],
-                    "name": set_row[1],
-                    "year": set_row[2],
-                    "category": set_row[3],
-                },
-                "inventory": []
-            }
-
-            for row in inventory_rows:
-                result["inventory"].append({
-                    "brick_type_id": row[0],
-                    "color_id": row[1],
-                    "count": row[2],
-                })
-
-            return json.dumps(result, indent=4)
-
-    finally:
-        conn.close()
 
 def get_cached_set_json(set_id):
     if set_id in SET_CACHE:
