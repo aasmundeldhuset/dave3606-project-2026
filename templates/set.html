@@ -5,41 +5,143 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Lego set</title>
         <style>
-            body { font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
-            table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-            th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #ddd; }
-            th { font-weight: 600; }
-            #error { color: red; }
+            body {
+                font-family: system-ui, sans-serif;
+                max-width: 900px;
+                margin: 2rem auto;
+                padding: 0 1rem;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 1rem;
+            }
+
+            th, td {
+                text-align: left;
+                padding: 0.5rem;
+                border-bottom: 1px solid #ddd;
+                vertical-align: top;
+            }
+
+            th {
+                font-weight: 600;
+            }
+
+            #error {
+                color: red;
+                margin-bottom: 1rem;
+            }
+
+            #setPreviewImage {
+                margin-top: 1rem;
+                margin-bottom: 1rem;
+                max-width: 250px;
+                height: auto;
+                display: none;
+            }
+
+            .brick-image {
+                width: 60px;
+                height: auto;
+            }
         </style>
     </head>
     <body>
         <h1>Lego set</h1>
+
         <div id="error"></div>
+
         <p><strong>Set id:</strong> <span id="setId"></span></p>
         <p><strong>Set name:</strong> <span id="setName"></span></p>
+        <p><strong>Year:</strong> <span id="setYear"></span></p>
+        <p><strong>Category:</strong> <span id="setCategory"></span></p>
+
+        <img id="setPreviewImage" alt="Preview image for Lego set">
+
+        <h2>Inventory</h2>
         <table>
-            <thead><tr><th>Image</th><th>Brick type</th><th>Color</th><th>Count</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th>Brick type</th>
+                    <th>Name</th>
+                    <th>Color</th>
+                    <th>Count</th>
+                </tr>
+            </thead>
             <tbody id="inventory"></tbody>
         </table>
+
         <script>
             const urlParameters = new URLSearchParams(document.location.search);
             const setId = urlParameters.get("id");
-            fetch(`/api/set?id=${setId}`)
-                .then(function(setData) { return setData.json(); })
-                .then(function(setJson) {
-                    const inventoryTable = document.getElementById("inventory");
-                    const inventoryRow = document.createElement("tr");
-                    inventoryRow.innerHTML = (
-                        "<td>Example row</td>" +
-                        "<td>to show how to</td>" +
-                        "<td>dynamically construct HTML</td>" +
-                        "<td>in JavaScript</td>"
-                    )
-                    inventoryTable.appendChild(inventoryRow);
-                })
-                .catch(function(err) {
-                    document.getElementById("error").textContent = "Failed to load data: " + err;
-                });
+
+            if (!setId) {
+                document.getElementById("error").textContent = "Missing set id in URL";
+            } else {
+                fetch(`/api/set?id=${encodeURIComponent(setId)}`)
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function(setJson) {
+                        if (setJson.error) {
+                            document.getElementById("error").textContent = setJson.error;
+                            return;
+                        }
+
+                        document.getElementById("setId").textContent = setJson.set.id;
+                        document.getElementById("setName").textContent = setJson.set.name;
+                        document.getElementById("setYear").textContent = setJson.set.year ?? "";
+                        document.getElementById("setCategory").textContent = setJson.set.category ?? "";
+
+                        const setPreviewImage = document.getElementById("setPreviewImage");
+                        if (setJson.set.preview_image_url) {
+                            setPreviewImage.src = setJson.set.preview_image_url;
+                            setPreviewImage.style.display = "block";
+                        }
+
+                        const inventoryTable = document.getElementById("inventory");
+                        inventoryTable.innerHTML = "";
+
+                        for (const item of setJson.inventory) {
+                            const inventoryRow = document.createElement("tr");
+
+                            const imageCell = document.createElement("td");
+                            if (item.preview_image_url) {
+                                const image = document.createElement("img");
+                                image.src = item.preview_image_url;
+                                image.alt = item.name;
+                                image.className = "brick-image";
+                                imageCell.appendChild(image);
+                            }
+
+                            const brickTypeCell = document.createElement("td");
+                            brickTypeCell.textContent = item.brick_type_id;
+
+                            const nameCell = document.createElement("td");
+                            nameCell.textContent = item.name;
+
+                            const colorCell = document.createElement("td");
+                            colorCell.textContent = item.color_id;
+
+                            const countCell = document.createElement("td");
+                            countCell.textContent = item.count;
+
+                            inventoryRow.appendChild(imageCell);
+                            inventoryRow.appendChild(brickTypeCell);
+                            inventoryRow.appendChild(nameCell);
+                            inventoryRow.appendChild(colorCell);
+                            inventoryRow.appendChild(countCell);
+
+                            inventoryTable.appendChild(inventoryRow);
+                        }
+                    })
+                    .catch(function(err) {
+                        document.getElementById("error").textContent = "Failed to load data: " + err;
+                    });
+            }
         </script>
     </body>
 </html>
