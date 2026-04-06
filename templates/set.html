@@ -17,6 +17,9 @@
         <div id="error"></div>
         <p><strong>Set id:</strong> <span id="setId"></span></p>
         <p><strong>Set name:</strong> <span id="setName"></span></p>
+        <p><strong>Year:</strong> <span id="setYear"></span></p>
+        <p><strong>Category:</strong> <span id="setCategory"></span></p>
+        <p><img id="setPreviewImage" alt="Set preview" style="max-width: 220px; display: none;"></p>
         <table>
             <thead><tr><th>Image</th><th>Brick type</th><th>Color</th><th>Count</th></tr></thead>
             <tbody id="inventory"></tbody>
@@ -24,18 +27,62 @@
         <script>
             const urlParameters = new URLSearchParams(document.location.search);
             const setId = urlParameters.get("id");
+            if (!setId) {
+                document.getElementById("error").textContent = "Missing set id in URL.";
+                throw new Error("Missing set id");
+            }
+
             fetch(`/api/set?id=${setId}`)
-                .then(function(setData) { return setData.json(); })
+                .then(function(setData) {
+                    if (!setData.ok) {
+                        throw new Error("Server returned status " + setData.status);
+                    }
+                    return setData.json();
+                })
                 .then(function(setJson) {
+                    const setInfo = setJson.set;
+                    document.getElementById("setId").textContent = setInfo.id;
+                    document.getElementById("setName").textContent = setInfo.name;
+                    document.getElementById("setYear").textContent = setInfo.year === null ? "unknown" : String(setInfo.year);
+                    document.getElementById("setCategory").textContent = setInfo.category === null ? "unknown" : setInfo.category;
+
+                    const setPreviewImage = document.getElementById("setPreviewImage");
+                    if (setInfo.previewImageUrl) {
+                        setPreviewImage.src = setInfo.previewImageUrl;
+                        setPreviewImage.style.display = "block";
+                    }
+
                     const inventoryTable = document.getElementById("inventory");
-                    const inventoryRow = document.createElement("tr");
-                    inventoryRow.innerHTML = (
-                        "<td>Example row</td>" +
-                        "<td>to show how to</td>" +
-                        "<td>dynamically construct HTML</td>" +
-                        "<td>in JavaScript</td>"
-                    )
-                    inventoryTable.appendChild(inventoryRow);
+                    setJson.inventory.forEach(function(item) {
+                        const inventoryRow = document.createElement("tr");
+
+                        const imageCell = document.createElement("td");
+                        if (item.previewImageUrl) {
+                            const image = document.createElement("img");
+                            image.src = item.previewImageUrl;
+                            image.alt = item.name;
+                            image.width = 48;
+                            image.height = 48;
+                            imageCell.appendChild(image);
+                        } else {
+                            imageCell.textContent = "-";
+                        }
+
+                        const brickTypeCell = document.createElement("td");
+                        brickTypeCell.textContent = item.brickTypeId;
+
+                        const colorCell = document.createElement("td");
+                        colorCell.textContent = String(item.colorId);
+
+                        const countCell = document.createElement("td");
+                        countCell.textContent = String(item.count);
+
+                        inventoryRow.appendChild(imageCell);
+                        inventoryRow.appendChild(brickTypeCell);
+                        inventoryRow.appendChild(colorCell);
+                        inventoryRow.appendChild(countCell);
+                        inventoryTable.appendChild(inventoryRow);
+                    });
                 })
                 .catch(function(err) {
                     document.getElementById("error").textContent = "Failed to load data: " + err;

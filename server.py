@@ -1,6 +1,8 @@
 import json
 import html
 import gzip
+from collections import OrderedDict
+from threading import Lock
 import psycopg
 from flask import Flask, Response, request
 from time import perf_counter
@@ -17,8 +19,35 @@ DB_CONFIG = {
     "password": "bricks",
 }
 
+SET_CACHE_CAPACITY = 100
+SET_CACHE = OrderedDict()
+SET_CACHE_LOCK = Lock()
+
+
+def _get_cached_set(set_id):
+    with SET_CACHE_LOCK:
+        cached = SET_CACHE.get(set_id)
+        if cached is not None:
+            # LRU: mark this key as most recently used.
+            SET_CACHE.move_to_end(set_id)
+        return cached
+
+
+def _put_cached_set(set_id, payload):
+    with SET_CACHE_LOCK:
+        SET_CACHE[set_id] = payload
+        SET_CACHE.move_to_end(set_id)
+        if len(SET_CACHE) > SET_CACHE_CAPACITY:
+            SET_CACHE.popitem(last=False)
+
 
 def _fetch_set_with_inventory(set_id):
+    cached_result = _get_cached_set(set_id)
+    if cached_result is not None:
+        print(f"/api/set cache hit for {set_id}")
+        return cached_result
+
+    start_time = perf_counter()
     with psycopg.connect(**DB_CONFIG) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -52,7 +81,7 @@ def _fetch_set_with_inventory(set_id):
             )
             inventory_rows = cur.fetchall()
 
-    return {
+    payload = {
         "set": {
             "id": set_row[0],
             "name": set_row[1],
@@ -71,6 +100,9 @@ def _fetch_set_with_inventory(set_id):
             for row in inventory_rows
         ],
     }
+    _put_cached_set(set_id, payload)
+    print(f"/api/set cache miss for {set_id}, DB fetch took {perf_counter() - start_time:.6f}s")
+    return payload
 
 
 @app.route("/")
@@ -108,6 +140,7 @@ def sets():
     compressed_page_bytes = gzip.compress(page_bytes)
     response = Response(compressed_page_bytes, content_type=f"text/html; charset={encoding}")
     response.headers["Content-Encoding"] = "gzip"
+    response.headers["Cache-Control"] = "public, max-age=60"
     return response
 
 
