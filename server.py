@@ -5,6 +5,8 @@ import psycopg
 from flask import Flask, Response, request
 from time import perf_counter
 
+from lego_set_binary_format import encode_lego_set_binary
+
 app = Flask(__name__)
 
 DB_CONFIG = {
@@ -14,6 +16,61 @@ DB_CONFIG = {
     "user": "lego",
     "password": "bricks",
 }
+
+
+def _fetch_set_with_inventory(set_id):
+    with psycopg.connect(**DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                select id, name, year, category, preview_image_url
+                from lego_set
+                where id = %s
+                """,
+                (set_id,),
+            )
+            set_row = cur.fetchone()
+            if set_row is None:
+                return None
+
+            cur.execute(
+                """
+                select
+                    i.brick_type_id,
+                    i.color_id,
+                    i.count,
+                    b.name,
+                    b.preview_image_url
+                from lego_inventory i
+                join lego_brick b
+                    on b.brick_type_id = i.brick_type_id
+                   and b.color_id = i.color_id
+                where i.set_id = %s
+                order by i.brick_type_id, i.color_id
+                """,
+                (set_id,),
+            )
+            inventory_rows = cur.fetchall()
+
+    return {
+        "set": {
+            "id": set_row[0],
+            "name": set_row[1],
+            "year": set_row[2],
+            "category": set_row[3],
+            "previewImageUrl": set_row[4],
+        },
+        "inventory": [
+            {
+                "brickTypeId": row[0],
+                "colorId": row[1],
+                "count": row[2],
+                "name": row[3],
+                "previewImageUrl": row[4],
+            }
+            for row in inventory_rows
+        ],
+    }
 
 
 @app.route("/")
@@ -64,9 +121,29 @@ def legoSet():  # We don't want to call the function `set`, since that would hid
 @app.route("/api/set")
 def apiSet():
     set_id = request.args.get("id")
-    result = {"set_id": set_id}
+    if not set_id:
+        return Response(json.dumps({"error": "Missing set id"}, indent=4), status=400, content_type="application/json")
+
+    result = _fetch_set_with_inventory(set_id)
+    if result is None:
+        return Response(json.dumps({"error": "Unknown set id"}, indent=4), status=404, content_type="application/json")
+
     json_result = json.dumps(result, indent=4)
     return Response(json_result, content_type="application/json")
+
+
+@app.route("/api/set.bin")
+def apiSetBinary():
+    set_id = request.args.get("id")
+    if not set_id:
+        return Response("Missing set id", status=400, content_type="text/plain")
+
+    result = _fetch_set_with_inventory(set_id)
+    if result is None:
+        return Response("Unknown set id", status=404, content_type="text/plain")
+
+    binary_result = encode_lego_set_binary(result)
+    return Response(binary_result, content_type="application/octet-stream")
 
 
 if __name__ == "__main__":
