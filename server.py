@@ -3,10 +3,10 @@ import html
 import gzip
 from collections import OrderedDict
 from threading import Lock
-import psycopg
 from flask import Flask, Response, request
 from time import perf_counter
 
+from database import Database
 from lego_set_binary_format import encode_lego_set_binary
 
 app = Flask(__name__)
@@ -22,6 +22,8 @@ DB_CONFIG = {
 SET_CACHE_CAPACITY = 100
 SET_CACHE = OrderedDict()
 SET_CACHE_LOCK = Lock()
+
+SETS_QUERY = "select id, name from lego_set order by id"
 
 
 def _get_cached_set(set_id):
@@ -41,45 +43,40 @@ def _put_cached_set(set_id, payload):
             SET_CACHE.popitem(last=False)
 
 
-def _fetch_set_with_inventory(set_id):
+def _sql_quote(value):
+    return str(value).replace("'", "''")
+
+
+def _set_query(set_id):
+    return (
+        "select id, name, year, category, preview_image_url "
+        "from lego_set "
+        f"where id = '{_sql_quote(set_id)}'"
+    )
+
+
+def _inventory_query(set_id):
+    return (
+        "select i.brick_type_id, i.color_id, i.count, b.name, b.preview_image_url "
+        "from lego_inventory i "
+        "join lego_brick b on b.brick_type_id = i.brick_type_id and b.color_id = i.color_id "
+        f"where i.set_id = '{_sql_quote(set_id)}' "
+        "order by i.brick_type_id, i.color_id"
+    )
+
+
+def _fetch_set_with_inventory(database, set_id):
     cached_result = _get_cached_set(set_id)
     if cached_result is not None:
         print(f"/api/set cache hit for {set_id}")
         return cached_result
 
     start_time = perf_counter()
-    with psycopg.connect(**DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                select id, name, year, category, preview_image_url
-                from lego_set
-                where id = %s
-                """,
-                (set_id,),
-            )
-            set_row = cur.fetchone()
-            if set_row is None:
-                return None
-
-            cur.execute(
-                """
-                select
-                    i.brick_type_id,
-                    i.color_id,
-                    i.count,
-                    b.name,
-                    b.preview_image_url
-                from lego_inventory i
-                join lego_brick b
-                    on b.brick_type_id = i.brick_type_id
-                   and b.color_id = i.color_id
-                where i.set_id = %s
-                order by i.brick_type_id, i.color_id
-                """,
-                (set_id,),
-            )
-            inventory_rows = cur.fetchall()
+    set_rows = database.execute_and_fetch_all(_set_query(set_id))
+    if len(set_rows) == 0:
+        return None
+    set_row = set_rows[0]
+    inventory_rows = database.execute_and_fetch_all(_inventory_query(set_id))
 
     payload = {
         "set": {
@@ -105,6 +102,35 @@ def _fetch_set_with_inventory(set_id):
     return payload
 
 
+def generate_sets_page_html(database, template, encoding):
+    meta_charset_tag = '<meta charset="UTF-8">' if encoding == "utf-8" else ""
+    start_time = perf_counter()
+    rows = database.execute_and_fetch_all(SETS_QUERY)
+
+    rows_list = []
+    for row in rows:
+        html_safe_id = html.escape(row[0])
+        html_safe_name = html.escape(row[1])
+        rows_list.append(f'<tr><td><a href="/set?id={html_safe_id}">{html_safe_id}</a></td><td>{html_safe_name}</td></tr>')
+
+    print(f"Time to render all sets: {perf_counter() - start_time}")
+    return template.replace("{ROWS}", "\n".join(rows_list)).replace("{META_CHARSET}", meta_charset_tag)
+
+
+def generate_set_json(database, set_id):
+    payload = _fetch_set_with_inventory(database, set_id)
+    if payload is None:
+        return None
+    return json.dumps(payload, indent=4)
+
+
+def generate_set_binary(database, set_id):
+    payload = _fetch_set_with_inventory(database, set_id)
+    if payload is None:
+        return None
+    return encode_lego_set_binary(payload)
+
+
 @app.route("/")
 def index():
     with open("templates/index.html") as f:
@@ -118,24 +144,13 @@ def sets():
         template = f.read()
     requested_encoding = request.args.get("encoding", "").lower()
     encoding = requested_encoding if requested_encoding in ("utf-8", "utf-16") else "utf-8"
-    meta_charset_tag = '<meta charset="UTF-8">' if encoding == "utf-8" else ""
 
-    start_time = perf_counter()
-    conn = psycopg.connect(**DB_CONFIG)
+    database = Database(DB_CONFIG)
     try:
-        rows_list = []
-        with conn.cursor() as cur:
-            cur.execute("select id, name from lego_set order by id")
-            for row in cur.fetchall():
-                html_safe_id = html.escape(row[0])
-                html_safe_name = html.escape(row[1])
-                # O(1) operation
-                rows_list.append(f'<tr><td><a href="/set?id={html_safe_id}">{html_safe_id}</a></td><td>{html_safe_name}</td></tr>')
-        print(f"Time to render all sets: {perf_counter() - start_time}")
+        page_html = generate_sets_page_html(database, template, encoding)
     finally:
-        conn.close()
+        database.close()
 
-    page_html = template.replace("{ROWS}", "\n".join(rows_list)).replace("{META_CHARSET}", meta_charset_tag)
     page_bytes = page_html.encode(encoding)
     compressed_page_bytes = gzip.compress(page_bytes)
     response = Response(compressed_page_bytes, content_type=f"text/html; charset={encoding}")
@@ -157,11 +172,14 @@ def apiSet():
     if not set_id:
         return Response(json.dumps({"error": "Missing set id"}, indent=4), status=400, content_type="application/json")
 
-    result = _fetch_set_with_inventory(set_id)
-    if result is None:
-        return Response(json.dumps({"error": "Unknown set id"}, indent=4), status=404, content_type="application/json")
+    database = Database(DB_CONFIG)
+    try:
+        json_result = generate_set_json(database, set_id)
+    finally:
+        database.close()
 
-    json_result = json.dumps(result, indent=4)
+    if json_result is None:
+        return Response(json.dumps({"error": "Unknown set id"}, indent=4), status=404, content_type="application/json")
     return Response(json_result, content_type="application/json")
 
 
@@ -171,11 +189,14 @@ def apiSetBinary():
     if not set_id:
         return Response("Missing set id", status=400, content_type="text/plain")
 
-    result = _fetch_set_with_inventory(set_id)
-    if result is None:
-        return Response("Unknown set id", status=404, content_type="text/plain")
+    database = Database(DB_CONFIG)
+    try:
+        binary_result = generate_set_binary(database, set_id)
+    finally:
+        database.close()
 
-    binary_result = encode_lego_set_binary(result)
+    if binary_result is None:
+        return Response("Unknown set id", status=404, content_type="text/plain")
     return Response(binary_result, content_type="application/octet-stream")
 
 
